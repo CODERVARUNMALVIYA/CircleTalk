@@ -3,7 +3,7 @@ import FriendRequest from '../models/FriendRequest.js';
 
 export async function getRecommendedUsers(req, res) {
     try {
-        const currentUserId = req.user.id;
+        const currentUserId = req.user._id;
 
         const currentUser = req.user
 
@@ -11,10 +11,10 @@ export async function getRecommendedUsers(req, res) {
             $and: [
        { _id: { $ne: currentUserId }},
         {_id: { $nin: currentUser.friends }},
-        {isOboarded: true}
+        {isOnboarded: true}
             ]
-        }).select('-password').limit(10);
-        res.satatus(200).json({
+        }).select('-password');
+        res.status(200).json({
             status: 'success',
             data: recommendedUsers
         })
@@ -30,15 +30,21 @@ export async function getRecommendedUsers(req, res) {
 
 export async function getMyFriends(req, res) {
     try {
-        const user = await User.findById(req.user.id)
+        const userId = req.user._id || req.user.id;
+        console.log('👥 Getting friends for user:', userId);
+        
+        const user = await User.findById(userId)
         .select('friends')
-        .populate('friends', 'fullName profilePic nativeLanguage lerningLanguage location');
+        .populate('friends', 'fullName profilePic nativeLanguage location email');
+
+        console.log(' Friends count:', user.friends.length);
+        console.log('🔍 Friends data:', user.friends);
 
         res.status(200).json(
             user.friends
         )
     } catch (error) {
-        console.log(error);
+        console.log('❌ Error in getMyFriends:', error);
         res.status(500).json({
             status: 'fail',
             message: 'server error'
@@ -49,10 +55,10 @@ export async function getMyFriends(req, res) {
 
 export async function senderFriendRequest(req,res){
     try {
-        const myId = req.user.id;
+        const myId = req.user._id || req.user.id;
         const{id:recipientId} = req.params
 
-        if(myId === recipientId){ return res.status(400).json({message:"you cannot send friend request to yourself"})}
+        if(myId.toString() === recipientId){ return res.status(400).json({message:"you cannot send friend request to yourself"})}
 
         const recipient = await User
         .findById(recipientId)
@@ -92,48 +98,55 @@ export async function senderFriendRequest(req,res){
 export async function acceptFriendRequest(req, res) {
     try {
      const {id: requestId} = req.params
+     const currentUserId = req.user._id || req.user.id;
 
      const friendRequest = await FriendRequest.findById(requestId)
         if(!friendRequest){
             return res.status(404).json({message:"friend request not found"})
         }
 
-        if(friendRequest.recipient.toString() !== req.user.id){
+        if(friendRequest.recipient.toString() !== currentUserId.toString()){
             return res.status(403).json({message:"you are not authorized to accept this friend request"})
         }   
         friendRequest.status = 'accepted'
         await friendRequest.save()
 
+        // Add each user to other's friends list
         await User.findByIdAndUpdate(friendRequest.sender, {
             $addToSet: {friends: friendRequest.recipient}
         })
         await User.findByIdAndUpdate(friendRequest.recipient, {
             $addToSet: {friends: friendRequest.sender}
         })
-        res.status(200).json({message:"friend request accepted"})
+        
+        res.status(200).json({message:"friend request accepted", success: true})
        
     } catch (error) {
-        console.log("Error accepting friend request:", error.message);
+        console.error("Error accepting friend request:", error.message);
         res.status(500).json({
             status: 'fail',
             message: 'server error'
         })
-
-        
     }
 }
 
 export async function getFriendRequests(req, res) {
     try {
+        const userId = req.user._id || req.user.id;
+        
         const incomingRequests = await FriendRequest.find({
-            recipient: req.user.id,
+            recipient: userId,
             status: 'pending'
         }).populate('sender', 'fullName profilePic nativeLanguage lerningLanguage location');
 
         const acceptedRequests = await FriendRequest.find({
-           sender: req.user.id,
-           status: 'accepted'
-        }).populate('recipient', 'fullName profilePic nativeLanguage lerningLanguage location');
+           $or: [
+               { sender: userId, status: 'accepted' },
+               { recipient: userId, status: 'accepted' }
+           ]
+        }).populate('sender', 'fullName profilePic nativeLanguage lerningLanguage location')
+          .populate('recipient', 'fullName profilePic nativeLanguage lerningLanguage location');
+        
         res.status(200).json({
             incomingRequests,
             acceptedRequests
@@ -150,8 +163,10 @@ export async function getFriendRequests(req, res) {
 
 export async function getOutgoingFriendRequests(req, res) {
     try {
+        const userId = req.user._id || req.user.id;
+        
         const outgoingRequests = await FriendRequest.find({
-            sender: req.user.id,
+            sender: userId,
             status: 'pending'
         }).populate('recipient', 'fullName profilePic nativeLanguage lerningLanguage location');                                                                    
         res.status(200).json(outgoingRequests);
@@ -161,5 +176,32 @@ export async function getOutgoingFriendRequests(req, res) {
             status: 'fail',
             message: 'server error'
         }); 
+    }
+}
+
+export async function rejectFriendRequest(req, res) {
+    try {
+        const {id: requestId} = req.params;
+        const userId = req.user._id || req.user.id;
+
+        const friendRequest = await FriendRequest.findById(requestId);
+        if(!friendRequest){
+            return res.status(404).json({message:"friend request not found"})
+        }
+
+        if(friendRequest.recipient.toString() !== userId.toString()){
+            return res.status(403).json({message:"you are not authorized to reject this friend request"})
+        }
+
+        friendRequest.status = 'rejected';
+        await friendRequest.save();
+
+        res.status(200).json({message:"friend request rejected"});
+    } catch (error) {
+        console.log("Error rejecting friend request:", error.message);
+        res.status(500).json({
+            status: 'fail',
+            message: 'server error'
+        });
     }
 }

@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 
 
 export async function signup(req, res) {
-const  { fullName, email, password } = req.body;  
+const  { fullName, email, password, profilePic, nativeLanguage, location } = req.body;  
 
 try {
     if(!fullName || !email || !password) {
@@ -22,13 +22,18 @@ try {
     if(existingUser) {
         return res.status(400).json({ message: "Email already in use" });
     }
-    const idx = Math.floor(Math.random() * 100)+1;
-    const  randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
+    
+    // Use provided profilePic or generate random one
+    const userAvatar = profilePic || `https://avatar.iran.liara.run/public/${Math.floor(Math.random() * 100) + 1}`;
+    
     const newUser = await User.create({
         fullName,
         email,
         password,
-        profilepic: randomAvatar,
+        profilePic: userAvatar,
+        nativeLanguage: nativeLanguage || 'English',
+        location: location || 'Earth',
+        isOnboarded: true,  // Mark user as onboarded immediately
     });
 
   try {
@@ -131,3 +136,47 @@ export async function onboard(req,res){
         res.status(500).json({ message: "Server error" });
     }
 }
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { fullName, bio, location, nativeLanguage, learningLanguages, interests, profilePic, isOnboarded } = req.body;
+    const userId = req.user._id || req.user.id;
+
+    const updateData = {};
+    
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (bio !== undefined) updateData.bio = bio;
+    if (location !== undefined) updateData.location = location;
+    if (nativeLanguage !== undefined) updateData.nativeLanguage = nativeLanguage;
+    if (learningLanguages !== undefined) updateData.learningLanguages = learningLanguages;
+    if (interests !== undefined) updateData.interests = interests;
+    if (profilePic !== undefined) updateData.profilePic = profilePic;
+    if (isOnboarded !== undefined) updateData.isOnboarded = isOnboarded;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update profile'
+    });
+  }
+};

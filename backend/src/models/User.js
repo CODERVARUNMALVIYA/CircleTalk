@@ -19,13 +19,16 @@ bio : {type:String,
 default:"Hey there! I am using CircleTalk"
 },
 profilePic : {type:String,
-default:"https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"            
+default:"https://avatar.iran.liara.run/public/1"            
 },
 nativeLanguage : {type:String,
 default:"English"            
 },
-lerningLanguage : {type:String,
-default:"Spanish"            
+learningLanguages : {type:[String],
+default:[]            
+},
+interests : {type:[String],
+default:[]            
 },
 location : {type:String,
 default:"Earth"            
@@ -34,7 +37,7 @@ isOnboarded : {type:Boolean,
 default:false            
 },
 friends : [{type:mongoose.Schema.Types.ObjectId,
-ref:"user"}],
+ref:"User"}],
 
 
 },{timestamps:true})
