@@ -148,20 +148,20 @@ const HomePages = () => {
   };
 
   return (
-    <div className="min-h-screen bg-base-200 flex relative">
+    <div className="min-h-screen bg-base-200 flex flex-col md:flex-row relative overflow-x-hidden">
       {/* Theme Selector Button */}
       <button
         onClick={() => setShowThemeSelector(!showThemeSelector)}
-        className="fixed top-4 right-4 z-50 btn btn-circle btn-primary shadow-lg"
+        className="fixed top-3 right-3 md:top-4 md:right-4 z-50 btn btn-circle btn-sm md:btn-md btn-primary shadow-lg"
       >
-        <span className="text-2xl">{currentTheme.icon}</span>
+        <span className="text-xl md:text-2xl">{currentTheme.icon}</span>
       </button>
 
       {/* Theme Selector Panel */}
       {showThemeSelector && (
-        <div className="fixed top-20 right-4 z-50 bg-base-100 rounded-2xl shadow-2xl p-6 border border-base-300 w-96 max-h-[600px] overflow-y-auto">
+        <div className="fixed top-16 right-3 left-3 md:left-auto md:top-20 md:right-4 z-50 bg-base-100 rounded-2xl shadow-2xl p-4 md:p-6 border border-base-300 w-auto md:w-96 max-h-[70vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold">🎨 Choose Theme</h3>
+            <h3 className="text-lg md:text-xl font-bold">🎨 Choose Theme</h3>
             <button
               onClick={() => setShowThemeSelector(false)}
               className="btn btn-ghost btn-sm btn-circle"
@@ -169,7 +169,7 @@ const HomePages = () => {
               ✕
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {themes.map((t) => (
               <button
                 key={t.name}
@@ -195,7 +195,7 @@ const HomePages = () => {
       )}
 
       {/* Sidebar */}
-      <aside className="w-64 bg-base-100 border-r border-base-300 flex flex-col shadow-xl">
+      <aside className="hidden md:flex md:w-64 w-full bg-base-100 border-r border-base-300 flex-col shadow-xl">
         {/* Logo Section */}
         <div className="p-6 border-b border-base-300">
           <div className="flex items-center space-x-3">
@@ -307,25 +307,34 @@ const HomePages = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
-        <header className="bg-base-100 border-b border-base-300 px-8 py-4 shadow-sm">
+        <header className="bg-base-100 border-b border-base-300 px-4 sm:px-6 md:px-8 py-3 sm:py-4 shadow-sm sticky top-0 z-20 safe-top">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold">
                 {activeTab === 'overview' && '🏠 Overview'}
                 {activeTab === 'friends' && '👥 Friends'}
                 {activeTab === 'discover' && '🔍 Discover People'}
               </h2>
-              <p className="text-sm opacity-60">
+              <p className="text-xs sm:text-sm opacity-60">
                 {activeTab === 'overview' && 'Welcome back to your dashboard'}
                 {activeTab === 'friends' && 'Manage your connections'}
                 {activeTab === 'discover' && 'Find new people to connect with'}
               </p>
             </div>
           </div>
+
+          <div className="mt-3 flex md:hidden gap-2 overflow-x-auto hide-scrollbar pb-1">
+            <button onClick={() => setActiveTab('overview')} className={`btn btn-sm whitespace-nowrap ${activeTab === 'overview' ? 'btn-primary' : 'btn-ghost'}`}>Overview</button>
+            <button onClick={() => setActiveTab('friends')} className={`btn btn-sm whitespace-nowrap ${activeTab === 'friends' ? 'btn-primary' : 'btn-ghost'}`}>Friends</button>
+            <button onClick={() => setActiveTab('discover')} className={`btn btn-sm whitespace-nowrap ${activeTab === 'discover' ? 'btn-primary' : 'btn-ghost'}`}>Discover</button>
+            <button onClick={() => navigate('/chat')} className="btn btn-sm btn-ghost whitespace-nowrap">Chat</button>
+            <button onClick={() => navigate('/call')} className="btn btn-sm btn-ghost whitespace-nowrap">Call</button>
+            <button onClick={() => navigate('/notification')} className="btn btn-sm btn-ghost whitespace-nowrap">Alerts</button>
+          </div>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -335,8 +344,8 @@ const HomePages = () => {
               <div className="card-body">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-4xl font-bold mb-2">Welcome back, {user?.fullName?.split(' ')[0]}! 👋</h2>
-                    <p className="text-lg opacity-70">Ready to connect and communicate?</p>
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">Welcome back, {user?.fullName?.split(' ')[0]}! 👋</h2>
+                    <p className="text-sm sm:text-base md:text-lg opacity-70">Ready to connect and communicate?</p>
                   </div>
                   <div className="hidden md:block">
                     <div className="avatar">
@@ -350,66 +359,66 @@ const HomePages = () => {
             </div>
 
             {/* Features Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
               {/* Chat Card */}
               <div
                 onClick={() => navigate('/chat')}
-                className="card bg-primary text-primary-content shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200 cursor-pointer"
+                className="card bg-primary text-primary-content shadow-xl hover:shadow-2xl hover:scale-[1.02] transform transition-all duration-200 cursor-pointer"
               >
                 <div className="card-body items-center text-center">
-                  <div className="text-5xl mb-4">💬</div>
-                  <h3 className="card-title text-2xl">Chat</h3>
-                  <p>Message your friends</p>
+                  <div className="text-4xl sm:text-5xl mb-4">💬</div>
+                  <h3 className="card-title text-xl sm:text-2xl">Chat</h3>
+                  <p className="text-sm sm:text-base">Message your friends</p>
                 </div>
               </div>
 
               {/* Video Call Card */}
               <div
                 onClick={() => navigate('/call')}
-                className="card bg-secondary text-secondary-content shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200 cursor-pointer"
+                className="card bg-secondary text-secondary-content shadow-xl hover:shadow-2xl hover:scale-[1.02] transform transition-all duration-200 cursor-pointer"
               >
                 <div className="card-body items-center text-center">
-                  <div className="text-5xl mb-4">📹</div>
-                  <h3 className="card-title text-2xl">Video Call</h3>
-                  <p>Face-to-face chat</p>
+                  <div className="text-4xl sm:text-5xl mb-4">📹</div>
+                  <h3 className="card-title text-xl sm:text-2xl">Video Call</h3>
+                  <p className="text-sm sm:text-base">Face-to-face chat</p>
                 </div>
               </div>
 
               {/* Notifications Card */}
               <div
                 onClick={() => navigate('/notification')}
-                className="card bg-accent text-accent-content shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200 cursor-pointer"
+                className="card bg-accent text-accent-content shadow-xl hover:shadow-2xl hover:scale-[1.02] transform transition-all duration-200 cursor-pointer"
               >
                 <div className="card-body items-center text-center">
-                  <div className="text-5xl mb-4">🔔</div>
-                  <h3 className="card-title text-2xl">Notifications</h3>
-                  <p>Stay updated</p>
+                  <div className="text-4xl sm:text-5xl mb-4">🔔</div>
+                  <h3 className="card-title text-xl sm:text-2xl">Notifications</h3>
+                  <p className="text-sm sm:text-base">Stay updated</p>
                 </div>
               </div>
 
               {/* Profile Card */}
               <div
                 onClick={() => navigate('/onboarding')}
-                className="card bg-success text-success-content shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200 cursor-pointer"
+                className="card bg-success text-success-content shadow-xl hover:shadow-2xl hover:scale-[1.02] transform transition-all duration-200 cursor-pointer"
               >
                 <div className="card-body items-center text-center">
-                  <div className="text-5xl mb-4">⚙️</div>
-                  <h3 className="card-title text-2xl">Settings</h3>
-                  <p>Manage profile</p>
+                  <div className="text-4xl sm:text-5xl mb-4">⚙️</div>
+                  <h3 className="card-title text-xl sm:text-2xl">Settings</h3>
+                  <p className="text-sm sm:text-base">Manage profile</p>
                 </div>
               </div>
             </div>
 
             {/* Stats Section */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               <div className="card bg-base-100 shadow-xl">
                 <div className="card-body">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-4xl font-bold">{myFriends?.length || 0}</div>
-                      <div className="text-lg mt-2 opacity-60">Friends</div>
+                      <div className="text-3xl sm:text-4xl font-bold">{myFriends?.length || 0}</div>
+                      <div className="text-sm sm:text-lg mt-2 opacity-60">Friends</div>
                     </div>
-                    <div className="text-5xl">👥</div>
+                    <div className="text-4xl sm:text-5xl">👥</div>
                   </div>
                 </div>
               </div>
@@ -417,10 +426,10 @@ const HomePages = () => {
                 <div className="card-body">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{user?.nativeLanguage || 'English'}</div>
-                      <div className="text-lg mt-2 opacity-60">Language</div>
+                      <div className="text-lg sm:text-2xl font-bold">{user?.nativeLanguage || 'English'}</div>
+                      <div className="text-sm sm:text-lg mt-2 opacity-60">Language</div>
                     </div>
-                    <div className="text-5xl">🌍</div>
+                    <div className="text-4xl sm:text-5xl">🌍</div>
                   </div>
                 </div>
               </div>
@@ -428,10 +437,10 @@ const HomePages = () => {
                 <div className="card-body">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{user?.location || 'Earth'}</div>
-                      <div className="text-lg mt-2 opacity-60">Location</div>
+                      <div className="text-lg sm:text-2xl font-bold">{user?.location || 'Earth'}</div>
+                      <div className="text-sm sm:text-lg mt-2 opacity-60">Location</div>
                     </div>
-                    <div className="text-5xl">📍</div>
+                    <div className="text-4xl sm:text-5xl">📍</div>
                   </div>
                 </div>
               </div>
@@ -443,23 +452,23 @@ const HomePages = () => {
         {activeTab === 'friends' && (
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-              <h2 className="card-title text-3xl mb-6">Your Friends</h2>
+              <h2 className="card-title text-2xl sm:text-3xl mb-6">Your Friends</h2>
               {loadingFriends ? (
                 <div className="text-center py-12">
                   <span className="loading loading-spinner loading-lg text-primary"></span>
                   <p className="text-xl opacity-60 mt-4">Loading friends...</p>
                 </div>
               ) : myFriends && myFriends.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {myFriends.map((friend) => (
-                    <div key={friend._id} className="card bg-base-200 shadow-md hover:scale-105 transition-all">
+                    <div key={friend._id} className="card bg-base-200 shadow-md hover:scale-[1.02] transition-all">
                       <div className="card-body items-center text-center">
                         <div className="avatar">
-                          <div className="w-20 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
+                          <div className="w-16 sm:w-20 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
                             <img src={resolveProfilePic(friend.profilePic, friend.fullName || friend._id)} alt={friend.fullName} />
                           </div>
                         </div>
-                        <h3 className="text-xl font-bold mt-3">{friend.fullName}</h3>
+                        <h3 className="text-lg sm:text-xl font-bold mt-3">{friend.fullName}</h3>
                         <p className="text-sm opacity-60">{friend.email}</p>
                         <div className="flex items-center space-x-2 mt-2 text-xs opacity-60">
                           <span>🌍 {friend.location || 'Earth'}</span>
@@ -504,7 +513,7 @@ const HomePages = () => {
         {activeTab === 'discover' && (
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-              <h2 className="card-title text-3xl mb-6">Discover People</h2>
+              <h2 className="card-title text-2xl sm:text-3xl mb-6">Discover People</h2>
               
               {loadingUsers ? (
                 <div className="text-center py-12">
@@ -512,22 +521,22 @@ const HomePages = () => {
                   <p className="text-xl opacity-60 mt-4">Loading users...</p>
                 </div>
               ) : discoverUsers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                   {discoverUsers.map((person) => (
                     <div
                       key={person._id}
-                      className="card bg-base-200 shadow-md hover:scale-105 transition-all"
+                      className="card bg-base-200 shadow-md hover:scale-[1.02] transition-all"
                     >
                       <div className="card-body items-center text-center">
                         <div className="avatar">
-                          <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                          <div className="w-16 sm:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                             <img
                               src={resolveProfilePic(person.profilePic, person.fullName || person._id)}
                               alt={person.fullName}
                             />
                           </div>
                         </div>
-                        <h3 className="card-title text-xl mt-4">{person.fullName}</h3>
+                        <h3 className="card-title text-lg sm:text-xl mt-4">{person.fullName}</h3>
                         <p className="text-sm opacity-60">{person.email}</p>
                         <p className="text-xs opacity-50 mb-3">{person.bio || 'Hey there! I am using CircleTalk'}</p>
                         <div className="flex items-center space-x-2 mb-3 text-xs opacity-60">

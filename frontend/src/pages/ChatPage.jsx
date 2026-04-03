@@ -13,6 +13,7 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedFriend, setSelectedFriend] = useState(null);
+  const [mobileView, setMobileView] = useState('list');
   const [newMessage, setNewMessage] = useState('');
   const [activityByFriend, setActivityByFriend] = useState({});
   const [lastPreviewByFriend, setLastPreviewByFriend] = useState({});
@@ -31,6 +32,22 @@ const ChatPage = () => {
       return [target, ...withoutCurrent];
     });
   };
+
+  useEffect(() => {
+    if (selectedFriend) {
+      setMobileView('chat');
+    }
+  }, [selectedFriend]);
+
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (isMobile) {
+      setMobileView('list');
+      return;
+    }
+
+    setMobileView('chat');
+  }, []);
 
   // Fetch current user
   const { data: authData } = useQuery({
@@ -123,6 +140,12 @@ const ChatPage = () => {
 
   // Restore last selected friend from localStorage when friends load
   useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+
+    if (isMobile) {
+      return;
+    }
+
     if (friends.length > 0 && !selectedFriend && user) {
       const lastSelectedId = localStorage.getItem(`lastSelectedFriend_${user._id}`);
       if (lastSelectedId) {
@@ -290,21 +313,21 @@ const ChatPage = () => {
   }, []);
 
   return (
-    <div className="h-screen overflow-hidden bg-base-200 flex">
+    <div className="h-[100dvh] overflow-hidden bg-base-200 flex flex-col md:flex-row">
       {/* Sidebar - Friends List */}
-      <aside className="w-80 h-full bg-base-100 border-r border-base-300 flex flex-col">
+      <aside className={`w-full md:w-80 h-full bg-base-100 border-r border-base-300 flex-col ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
         {/* Header */}
-        <div className="p-4 border-b border-base-300">
+        <div className="p-3 sm:p-4 border-b border-base-300 safe-top">
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => navigate('/')}
-              className="btn btn-ghost btn-circle btn-sm"
+              className="btn btn-ghost btn-circle btn-sm shrink-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </button>
-            <h2 className="text-xl font-bold">💬 Messages</h2>
+            <h2 className="text-lg sm:text-xl font-bold">💬 Messages</h2>
             {totalUnreadMessages > 0 ? (
               <div className="badge badge-error">{totalUnreadMessages}</div>
             ) : (
@@ -317,19 +340,19 @@ const ChatPage = () => {
             <input
               type="text"
               placeholder="Search friends..."
-              className="input input-bordered input-sm w-full"
+              className="input input-bordered input-sm w-full text-base"
             />
           </div>
         </div>
 
         {/* Friends List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar">
           {loadingFriends ? (
             <div className="p-4 text-center">
               <span className="loading loading-spinner loading-md"></span>
             </div>
           ) : friends.length > 0 ? (
-            <div className="menu p-2">
+            <div className="menu p-2 gap-1 sm:gap-2">
               {sortedFriends.map((friend) => {
                 const friendId = toId(friend._id);
                 const unreadCount = unreadBySender[friendId]?.unreadCount || 0;
@@ -340,11 +363,11 @@ const ChatPage = () => {
                   key={friend._id}
                   onClick={() => {
                     setSelectedFriend(friend);
-                    moveFriendToTop(friendId);
                     queryClient.invalidateQueries({ queryKey: ['chatHistory', friendId] });
                     queryClient.invalidateQueries({ queryKey: ['unreadSummary'] });
+                    setMobileView('chat');
                   }}
-                  className={`flex items-center space-x-3 p-3 rounded-lg mb-2 hover:bg-base-200 transition-all ${
+                  className={`flex items-center space-x-3 p-3 rounded-lg mb-2 hover:bg-base-200 transition-all min-h-[64px] ${
                     toId(selectedFriend?._id) === friendId ? 'bg-primary text-primary-content' : ''
                   }`}
                 >
@@ -357,8 +380,8 @@ const ChatPage = () => {
                     </div>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold truncate">{friend.fullName}</p>
-                    <p className="text-xs opacity-60 truncate">
+                    <p className="font-semibold truncate text-sm sm:text-base">{friend.fullName}</p>
+                    <p className="text-xs opacity-60 truncate max-w-[170px] sm:max-w-none">
                       {previewText}
                     </p>
                   </div>
@@ -400,13 +423,22 @@ const ChatPage = () => {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 h-full min-h-0 flex flex-col">
+      <main className={`flex-1 h-full min-h-0 flex-col ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
         {selectedFriend ? (
           <>
             {/* Chat Header */}
-            <header className="bg-base-100 border-b border-base-300 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
+            <header className="bg-base-100 border-b border-base-300 p-3 sm:p-4 shadow-sm safe-top">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => setMobileView('list')}
+                    className="btn btn-ghost btn-circle btn-sm md:hidden shrink-0"
+                    title="Back to chats"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                  </button>
                   <div className="avatar online">
                     <div className="w-12 rounded-full">
                       <img
@@ -416,24 +448,24 @@ const ChatPage = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold">{selectedFriend.fullName}</h3>
-                    <p className="text-xs opacity-60">
+                    <h3 className="text-base sm:text-lg font-bold truncate max-w-[160px] sm:max-w-none">{selectedFriend.fullName}</h3>
+                    <p className="text-xs opacity-60 truncate max-w-[160px] sm:max-w-none">
                       🌍 {selectedFriend.location || 'Earth'} • 💬 {selectedFriend.nativeLanguage || 'English'}
                     </p>
                   </div>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-1 sm:space-x-2 shrink-0">
                   <button
                     onClick={() => navigate('/call', { state: { friend: selectedFriend, callType: 'video' } })}
-                    className="btn btn-circle btn-ghost"
+                    className="btn btn-circle btn-ghost btn-sm sm:btn-md"
                     title="Video Call"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                   </button>
-                  <button className="btn btn-circle btn-ghost" title="More options">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <button className="btn btn-circle btn-ghost btn-sm sm:btn-md" title="More options">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                     </svg>
                   </button>
@@ -442,7 +474,7 @@ const ChatPage = () => {
             </header>
 
             {/* Messages Area */}
-            <div id="messages-container" className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+            <div id="messages-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4 custom-scrollbar hide-scrollbar">
               {loadingMessages ? (
                 <div className="text-center py-12">
                   <span className="loading loading-spinner loading-lg text-primary"></span>
@@ -457,7 +489,7 @@ const ChatPage = () => {
                       className={`chat ${isSender ? 'chat-end' : 'chat-start'}`}
                     >
                       <div className="chat-image avatar">
-                        <div className="w-10 rounded-full">
+                        <div className="w-8 sm:w-10 rounded-full">
                           <img
                             src={
                               isSender
@@ -469,8 +501,8 @@ const ChatPage = () => {
                         </div>
                       </div>
                       <div className="chat-header mb-1">
-                        {isSender ? 'You' : message.sender.fullName}
-                        <time className="text-xs opacity-50 ml-2">
+                        <span className="text-sm sm:text-base">{isSender ? 'You' : message.sender.fullName}</span>
+                        <time className="text-[11px] sm:text-xs opacity-50 ml-2">
                           {new Date(message.createdAt).toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -501,9 +533,9 @@ const ChatPage = () => {
             </div>
 
             {/* Message Input */}
-            <footer className="bg-base-100 border-t border-base-300 p-4">
-              <div className="flex items-end space-x-3">
-                <button className="btn btn-circle btn-ghost">
+            <footer className="bg-base-100 border-t border-base-300 p-3 sm:p-4 safe-bottom">
+              <div className="flex items-end gap-2 sm:gap-3">
+                <button className="btn btn-circle btn-ghost btn-sm sm:btn-md shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -513,15 +545,15 @@ const ChatPage = () => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Type a message..."
-                  className="textarea textarea-bordered flex-1 resize-none"
+                  className="textarea textarea-bordered flex-1 resize-none text-base min-h-[48px] max-h-32"
                   rows="1"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim()}
-                  className="btn btn-primary btn-circle"
+                  className="btn btn-primary btn-circle btn-sm sm:btn-md shrink-0"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
                 </button>
@@ -529,11 +561,11 @@ const ChatPage = () => {
             </footer>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-8xl mb-6">💬</div>
-              <h2 className="text-3xl font-bold mb-2">Welcome to Chat!</h2>
-              <p className="text-lg opacity-60 mb-6">
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="text-center max-w-sm mx-auto">
+              <div className="text-6xl sm:text-8xl mb-6">💬</div>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2">Welcome to Chat!</h2>
+              <p className="text-base sm:text-lg opacity-60 mb-6">
                 Select a friend to start messaging
               </p>
               {friends.length === 0 && (
