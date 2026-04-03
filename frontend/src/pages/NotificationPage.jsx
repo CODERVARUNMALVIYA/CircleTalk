@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { axiosInstance } from '../lib/axios'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { resolveProfilePic } from '../lib/avatar'
 
 const NotificationPage = () => {
   const navigate = useNavigate();
@@ -149,7 +150,7 @@ const NotificationPage = () => {
                         <div className="avatar">
                           <div className="w-16 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                             <img
-                              src={request.sender.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                              src={resolveProfilePic(request.sender.profilePic, request.sender.fullName || request.sender._id)}
                               alt={request.sender.fullName}
                             />
                           </div>
@@ -238,7 +239,7 @@ const NotificationPage = () => {
                         <div className="avatar">
                           <div className="w-16 rounded-full ring ring-warning ring-offset-base-100 ring-offset-2">
                             <img
-                              src={request.recipient.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                              src={resolveProfilePic(request.recipient.profilePic, request.recipient.fullName || request.recipient._id)}
                               alt={request.recipient.fullName}
                             />
                           </div>
@@ -302,7 +303,7 @@ const NotificationPage = () => {
                           <div className="avatar">
                             <div className="w-16 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
                               <img
-                                src={friend.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                                src={resolveProfilePic(friend.profilePic, friend.fullName || friend._id)}
                                 alt={friend.fullName}
                               />
                             </div>

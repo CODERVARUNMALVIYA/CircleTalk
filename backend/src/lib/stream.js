@@ -1,16 +1,22 @@
 import {StreamChat} from "stream-chat";
 import "dotenv/config";
 
-const apiKey = process.env.STEAM_API_KEY;
-const apiSecret = process.env.STEAM_API_SECRET;
+const apiKey = process.env.STREAM_API_KEY || process.env.STEAM_API_KEY;
+const apiSecret = process.env.STREAM_API_SECRET || process.env.STEAM_API_SECRET;
 
-if(!apiKey || !apiSecret) {
-    throw new Error("Stream API key and secret are required");
+let streamClient = null;
+
+if (!apiKey || !apiSecret) {
+    console.warn("Stream credentials missing. Stream features are disabled.");
+} else {
+    streamClient = StreamChat.getInstance(apiKey, apiSecret);
 }
-
-const streamClient = StreamChat.getInstance(apiKey, apiSecret);
  
 export const upsertStreamUser = async (userdata) => {
+    if (!streamClient) {
+        return userdata;
+    }
+
     try {
         await streamClient.upsertUser(userdata);
         return userdata;
@@ -21,6 +27,10 @@ export const upsertStreamUser = async (userdata) => {
 };
 
 export const generateStreamToken = (userId) => {
+    if (!streamClient) {
+        return null;
+    }
+
     try {
         const userIdStr= userId.toString();
         return streamClient.createToken(userIdStr);

@@ -3,21 +3,54 @@ import FriendRequest from '../models/FriendRequest.js';
 
 export async function getRecommendedUsers(req, res) {
     try {
-        const currentUserId = req.user._id;
+        const currentUserId = req.user._id || req.user.id;
 
-        const currentUser = req.user
+        const currentUser = await User.findById(currentUserId).select('friends');
+        if (!currentUser) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'user not found'
+            });
+        }
 
-        const recommendedUsers = await User.find({
-            $and: [
-       { _id: { $ne: currentUserId }},
-        {_id: { $nin: currentUser.friends }},
-        {isOnboarded: true}
+        const pendingRequests = await FriendRequest.find({
+            status: 'pending',
+            $or: [
+                { sender: currentUserId },
+                { recipient: currentUserId }
             ]
+        }).select('sender recipient');
+
+        const excludedUserIds = new Set([
+            currentUserId.toString(),
+            ...currentUser.friends.map((friendId) => friendId.toString())
+        ]);
+
+        pendingRequests.forEach((request) => {
+            const otherUserId = request.sender.toString() === currentUserId.toString()
+                ? request.recipient.toString()
+                : request.sender.toString();
+
+            excludedUserIds.add(otherUserId);
+        });
+
+        const discoverFilter = {
+            _id: { $nin: Array.from(excludedUserIds) }
+        };
+
+        let recommendedUsers = await User.find({
+            ...discoverFilter,
+            isOnboarded: true
         }).select('-password');
+
+        if (recommendedUsers.length === 0) {
+            recommendedUsers = await User.find(discoverFilter).select('-password');
+        }
+
         res.status(200).json({
             status: 'success',
             data: recommendedUsers
-        })
+        });
     } catch (error) {
         console.log(error);
         res.status(500).json({

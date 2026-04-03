@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { axiosInstance } from '../lib/axios'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { resolveProfilePic } from '../lib/avatar'
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -154,7 +155,7 @@ const ChatPage = () => {
                   <div className="avatar online">
                     <div className="w-12 rounded-full">
                       <img
-                        src={friend.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                        src={resolveProfilePic(friend.profilePic, friend.fullName || friend._id)}
                         alt={friend.fullName}
                       />
                     </div>
@@ -187,7 +188,7 @@ const ChatPage = () => {
           <div className="flex items-center space-x-3">
             <div className="avatar">
               <div className="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                <img src={user?.profilePic || 'https://avatar.iran.liara.run/public/1'} alt="You" />
+                <img src={resolveProfilePic(user?.profilePic, user?.fullName || 'you')} alt="You" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
@@ -209,7 +210,7 @@ const ChatPage = () => {
                   <div className="avatar online">
                     <div className="w-12 rounded-full">
                       <img
-                        src={selectedFriend.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                        src={resolveProfilePic(selectedFriend.profilePic, selectedFriend.fullName || selectedFriend._id)}
                         alt={selectedFriend.fullName}
                       />
                     </div>
@@ -260,8 +261,8 @@ const ChatPage = () => {
                           <img
                             src={
                               isSender
-                                ? message.sender.profilePic || user.profilePic
-                                : message.sender.profilePic || selectedFriend.profilePic
+                                ? resolveProfilePic(message.sender.profilePic || user?.profilePic, user?.fullName || 'you')
+                                : resolveProfilePic(message.sender.profilePic || selectedFriend?.profilePic, selectedFriend?.fullName || 'friend')
                             }
                             alt="Avatar"
                           />

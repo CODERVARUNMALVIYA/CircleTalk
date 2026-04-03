@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { axiosInstance } from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { avatarOptionUrl } from '../lib/avatar';
 
 const SignUpPage = () => {
   const [fullName, setFullName] = useState('');
@@ -38,7 +39,7 @@ const SignUpPage = () => {
     }
 
     try {
-      const profilePic = `https://avatar.iran.liara.run/public/${selectedAvatar}`;
+      const profilePic = avatarOptionUrl(selectedAvatar);
       const res = await axiosInstance.post('/auth/signup', { 
         fullName, 
         email, 
@@ -117,7 +118,7 @@ const SignUpPage = () => {
                   }`}
                 >
                   <img
-                    src={`https://avatar.iran.liara.run/public/${num}`}
+                    src={avatarOptionUrl(num)}
                     alt={`Avatar ${num}`}
                     className="w-full h-full rounded-full"
                   />

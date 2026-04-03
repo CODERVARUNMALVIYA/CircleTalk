@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { axiosInstance } from '../lib/axios'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { avatarOptionUrl, resolveProfilePic } from '../lib/avatar'
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
@@ -90,7 +91,7 @@ const OnboardingPage = () => {
     };
 
     if (selectedAvatar) {
-      updateData.profilePic = `https://avatar.iran.liara.run/public/${selectedAvatar}`;
+      updateData.profilePic = avatarOptionUrl(selectedAvatar);
     }
 
     updateMutation.mutate(updateData);
@@ -157,8 +158,8 @@ const OnboardingPage = () => {
                   <div className="w-20 sm:w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                     <img
                       src={selectedAvatar 
-                        ? `https://avatar.iran.liara.run/public/${selectedAvatar}`
-                        : user?.profilePic || 'https://avatar.iran.liara.run/public/1'
+                        ? avatarOptionUrl(selectedAvatar)
+                        : resolveProfilePic(user?.profilePic)
                       }
                       alt="Profile"
                     />
@@ -184,7 +185,7 @@ const OnboardingPage = () => {
                     }`}
                   >
                     <img
-                      src={`https://avatar.iran.liara.run/public/${num}`}
+                      src={avatarOptionUrl(num)}
                       alt={`Avatar ${num}`}
                       className="w-full h-full rounded-full"
                     />

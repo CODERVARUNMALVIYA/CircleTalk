@@ -5,6 +5,14 @@ export async function getStreamToken(req, res) {
     try {
         const userId = req.user._id || req.user.id;
         const token = generateStreamToken(userId);
+
+        if (!token) {
+            return res.status(503).json({
+                status: 'fail',
+                message: 'Chat service not configured'
+            });
+        }
+
         res.status(200).json({ token });
     } catch (error) {
         console.log("Error generating stream token:", error.message);

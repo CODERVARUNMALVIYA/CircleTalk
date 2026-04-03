@@ -24,7 +24,8 @@ try {
     }
     
     // Use provided profilePic or generate random one
-    const userAvatar = profilePic || `https://avatar.iran.liara.run/public/${Math.floor(Math.random() * 100) + 1}`;
+    const randomSeed = `user-${Math.floor(Math.random() * 10000) + 1}`;
+    const userAvatar = profilePic || `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(randomSeed)}`;
     
     const newUser = await User.create({
         fullName,

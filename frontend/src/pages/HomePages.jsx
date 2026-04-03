@@ -3,6 +3,7 @@ import { axiosInstance } from '../lib/axios'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { resolveProfilePic } from '../lib/avatar'
 
 const HomePages = () => {
   const navigate = useNavigate();
@@ -74,8 +75,8 @@ const HomePages = () => {
 
   // Get IDs of users we've already sent requests to or received from
   const pendingUserIds = [
-    ...pendingRequests.map(req => req.recipient._id),
-    ...incomingRequests.map(req => req.sender._id)
+    ...pendingRequests.map((request) => request?.recipient?._id).filter(Boolean),
+    ...incomingRequests.map((request) => request?.sender?._id).filter(Boolean)
   ];
 
   // Filter discover users - exclude self, friends, and users with pending requests
@@ -138,8 +139,9 @@ const HomePages = () => {
       await axiosInstance.post(`/users/friend-request/${receiverId}`);
       toast.success('Friend request sent!');
       // Refresh queries to update UI
-      queryClient.invalidateQueries(["outgoingRequests"]);
-      queryClient.invalidateQueries(["allUsers"]);
+      queryClient.invalidateQueries({ queryKey: ["outgoingRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["allUsers"] });
+      queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to send request');
     }
@@ -285,7 +287,7 @@ const HomePages = () => {
           <div className="flex items-center space-x-3 mb-3">
             <div className="avatar">
               <div className="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                <img src={user?.profilePic || 'https://avatar.iran.liara.run/public/1'} alt="Profile" />
+                <img src={resolveProfilePic(user?.profilePic, user?.fullName || 'profile')} alt="Profile" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
@@ -339,7 +341,7 @@ const HomePages = () => {
                   <div className="hidden md:block">
                     <div className="avatar">
                       <div className="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                        <img src={user?.profilePic || 'https://avatar.iran.liara.run/public/1'} alt="Profile" />
+                        <img src={resolveProfilePic(user?.profilePic, user?.fullName || 'profile')} alt="Profile" />
                       </div>
                     </div>
                   </div>
@@ -454,7 +456,7 @@ const HomePages = () => {
                       <div className="card-body items-center text-center">
                         <div className="avatar">
                           <div className="w-20 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
-                            <img src={friend.profilePic || 'https://avatar.iran.liara.run/public/1'} alt={friend.fullName} />
+                            <img src={resolveProfilePic(friend.profilePic, friend.fullName || friend._id)} alt={friend.fullName} />
                           </div>
                         </div>
                         <h3 className="text-xl font-bold mt-3">{friend.fullName}</h3>
@@ -520,7 +522,7 @@ const HomePages = () => {
                         <div className="avatar">
                           <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                             <img
-                              src={person.profilePic || 'https://avatar.iran.liara.run/public/1'}
+                              src={resolveProfilePic(person.profilePic, person.fullName || person._id)}
                               alt={person.fullName}
                             />
                           </div>
@@ -546,8 +548,14 @@ const HomePages = () => {
               ) : (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-xl opacity-60">No users found to connect with</p>
-                  <p className="text-sm opacity-40 mt-2">You've already connected with everyone!</p>
+                  <p className="text-xl opacity-60">No users available to connect right now</p>
+                  <p className="text-sm opacity-40 mt-2">Try again in a moment or ask a friend to sign up</p>
+                  <button
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ["allUsers"] })}
+                    className="btn btn-primary btn-sm mt-4"
+                  >
+                    Refresh
+                  </button>
                 </div>
               )}
             </div>

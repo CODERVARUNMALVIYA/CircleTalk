@@ -19,7 +19,7 @@ bio : {type:String,
 default:"Hey there! I am using CircleTalk"
 },
 profilePic : {type:String,
-default:"https://avatar.iran.liara.run/public/1"            
+default:"https://api.dicebear.com/9.x/adventurer/svg?seed=default-user"            
 },
 nativeLanguage : {type:String,
 default:"English"            
