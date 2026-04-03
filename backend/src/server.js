@@ -18,20 +18,43 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+const isOriginAllowed = (origin) => {
+    if (!origin) return true;
+
+    if (allowedOrigins.includes(origin)) return true;
+
+    try {
+        const { hostname, protocol } = new URL(origin);
+        const isRenderHost = hostname.endsWith('.onrender.com');
+        const isHttpProtocol = protocol === 'http:' || protocol === 'https:';
+        return isRenderHost && isHttpProtocol;
+    } catch {
+        return false;
+    }
+};
+
+const corsOriginHandler = (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+        return callback(null, true);
+    }
+
+    return callback(new Error('CORS blocked for this origin'));
+};
+
 // Create HTTP server
 const httpServer = createServer(app);
 
 // Setup Socket.io with CORS
 const io = new Server(httpServer, {
     cors: {
-        origin: allowedOrigins,
+        origin: corsOriginHandler,
         credentials: true,
         methods: ['GET', 'POST']
     }
 });
 
 app.use(cors({
-    origin: allowedOrigins,
+    origin: corsOriginHandler,
     credentials: true,
 }));
 
