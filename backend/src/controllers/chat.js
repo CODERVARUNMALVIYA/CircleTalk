@@ -42,6 +42,14 @@ export async function sendMessage(req, res) {
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'fullName profilePic')
             .populate('recipient', 'fullName profilePic');
+
+        const io = req.app.get('io');
+        const onlineUsers = req.app.get('onlineUsers');
+        const recipientSocketId = onlineUsers?.get(recipientId?.toString());
+
+        if (io && recipientSocketId) {
+            io.to(recipientSocketId).emit('new-message', populatedMessage);
+        }
         
         res.status(201).json({
             success: true,
@@ -112,6 +120,45 @@ export async function getUnreadCount(req, res) {
         });
     } catch (error) {
         console.log("Error fetching unread count:", error.message);
+        res.status(500).json({
+            status: 'fail',
+            message: 'server error'
+        });
+    }
+}
+
+export async function getUnreadSummary(req, res) {
+    try {
+        const userId = req.user._id || req.user.id;
+
+        const unreadSummary = await Message.aggregate([
+            {
+                $match: {
+                    recipient: userId,
+                    read: false,
+                }
+            },
+            {
+                $group: {
+                    _id: '$sender',
+                    unreadCount: { $sum: 1 },
+                    latestAt: { $max: '$createdAt' }
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            bySender: unreadSummary.reduce((acc, item) => {
+                acc[item._id.toString()] = {
+                    unreadCount: item.unreadCount,
+                    latestAt: item.latestAt,
+                };
+                return acc;
+            }, {})
+        });
+    } catch (error) {
+        console.log('Error fetching unread summary:', error.message);
         res.status(500).json({
             status: 'fail',
             message: 'server error'

@@ -1,15 +1,36 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { axiosInstance } from '../lib/axios'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { resolveProfilePic } from '../lib/avatar'
+import { io } from 'socket.io-client'
+
+const SOCKET_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '').replace(/\/$/, '');
+const toId = (value) => (value == null ? '' : String(value));
 
 const ChatPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [newMessage, setNewMessage] = useState('');
+  const [activityByFriend, setActivityByFriend] = useState({});
+  const [lastPreviewByFriend, setLastPreviewByFriend] = useState({});
+  const [orderedFriends, setOrderedFriends] = useState([]);
+  const socketRef = useRef(null);
+  const selectedFriendRef = useRef(null);
+
+  const moveFriendToTop = (friendId) => {
+    const id = toId(friendId);
+    if (!id) return;
+
+    setOrderedFriends((prev) => {
+      const withoutCurrent = prev.filter((friend) => toId(friend._id) !== id);
+      const target = prev.find((friend) => toId(friend._id) === id) || friends.find((friend) => toId(friend._id) === id);
+      if (!target) return prev;
+      return [target, ...withoutCurrent];
+    });
+  };
 
   // Fetch current user
   const { data: authData } = useQuery({
@@ -29,6 +50,15 @@ const ChatPage = () => {
     },
   });
 
+  const { data: unreadSummaryData } = useQuery({
+    queryKey: ["unreadSummary"],
+    queryFn: async () => {
+      const res = await axiosInstance.get('/chat/unread-summary');
+      return res.data;
+    },
+    refetchInterval: 15000,
+  });
+
   // Fetch chat history for selected friend
   const { data: chatData, isLoading: loadingMessages } = useQuery({
     queryKey: ["chatHistory", selectedFriend?._id],
@@ -44,6 +74,52 @@ const ChatPage = () => {
   const user = authData?.user;
   const friends = friendsData || [];
   const messages = chatData?.messages || [];
+  const unreadBySender = unreadSummaryData?.bySender || {};
+
+  useEffect(() => {
+    setOrderedFriends((prev) => {
+      if (!friends.length) return [];
+
+      const freshById = new Map(friends.map((friend) => [toId(friend._id), friend]));
+      const prevIds = prev.map((friend) => toId(friend._id));
+
+      const kept = prevIds
+        .filter((id) => freshById.has(id))
+        .map((id) => freshById.get(id));
+
+      const keptIds = new Set(kept.map((friend) => toId(friend._id)));
+      const missing = friends.filter((friend) => !keptIds.has(toId(friend._id)));
+
+      return [...kept, ...missing];
+    });
+  }, [friends]);
+
+  useEffect(() => {
+    selectedFriendRef.current = selectedFriend;
+  }, [selectedFriend]);
+
+  useEffect(() => {
+    if (!unreadSummaryData?.bySender) return;
+
+    setActivityByFriend((prev) => {
+      const next = { ...prev };
+      Object.entries(unreadSummaryData.bySender).forEach(([friendId, details]) => {
+        if (details?.latestAt) {
+          next[friendId] = new Date(details.latestAt).getTime();
+        }
+      });
+      return next;
+    });
+  }, [unreadSummaryData]);
+
+  const totalUnreadMessages = useMemo(
+    () => Object.values(unreadBySender).reduce((sum, item) => sum + (item?.unreadCount || 0), 0),
+    [unreadBySender]
+  );
+
+  const sortedFriends = useMemo(() => {
+    return orderedFriends.length ? orderedFriends : friends;
+  }, [orderedFriends, friends]);
 
   // Restore last selected friend from localStorage when friends load
   useEffect(() => {
@@ -65,6 +141,60 @@ const ChatPage = () => {
     }
   }, [selectedFriend, user]);
 
+  useEffect(() => {
+    if (!user?._id) return;
+
+    if (!socketRef.current) {
+      socketRef.current = io(SOCKET_BASE_URL, {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+      });
+    }
+
+    const activeSocket = socketRef.current;
+
+    const handleConnect = () => {
+      activeSocket.emit('user-online', user._id);
+    };
+
+    const handleNewMessage = (incomingMessage) => {
+      const senderId = incomingMessage?.sender?._id;
+      const senderIdStr = toId(senderId);
+      if (!senderIdStr) return;
+
+      const incomingText = incomingMessage?.text || 'New message';
+
+      setActivityByFriend((prev) => ({
+        ...prev,
+        [senderIdStr]: new Date(incomingMessage.createdAt || Date.now()).getTime(),
+      }));
+      moveFriendToTop(senderIdStr);
+
+      setLastPreviewByFriend((prev) => ({
+        ...prev,
+        [senderIdStr]: incomingText,
+      }));
+
+      queryClient.invalidateQueries({ queryKey: ['unreadSummary'] });
+
+      const activeFriendId = toId(selectedFriendRef.current?._id);
+      if (activeFriendId === senderIdStr) {
+        queryClient.invalidateQueries({ queryKey: ['chatHistory', senderIdStr] });
+        return;
+      }
+
+      toast(`${incomingMessage.sender.fullName}: ${incomingText}`, { icon: '💬' });
+    };
+
+    activeSocket.on('connect', handleConnect);
+    activeSocket.on('new-message', handleNewMessage);
+
+    return () => {
+      activeSocket.off('connect', handleConnect);
+      activeSocket.off('new-message', handleNewMessage);
+    };
+  }, [user?._id, queryClient]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     const messagesContainer = document.getElementById('messages-container');
@@ -82,9 +212,24 @@ const ChatPage = () => {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setNewMessage('');
-      queryClient.invalidateQueries(["chatHistory", selectedFriend?._id]);
+      const createdMessage = data?.message;
+      const targetFriendId = toId(selectedFriend?._id);
+
+      if (targetFriendId && createdMessage?.text) {
+        setActivityByFriend((prev) => ({
+          ...prev,
+          [targetFriendId]: new Date(createdMessage.createdAt || Date.now()).getTime(),
+        }));
+
+        setLastPreviewByFriend((prev) => ({
+          ...prev,
+          [targetFriendId]: `You: ${createdMessage.text}`,
+        }));
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["chatHistory", selectedFriend?._id] });
     },
     onError: (error) => {
       toast.error(error?.response?.data?.message || 'Failed to send message');
@@ -93,10 +238,25 @@ const ChatPage = () => {
 
   const sendMessage = () => {
     if (!newMessage.trim() || !selectedFriend) return;
+
+    const now = Date.now();
+    const messageText = newMessage.trim();
+    const selectedFriendId = toId(selectedFriend._id);
+    moveFriendToTop(selectedFriendId);
+
+    setActivityByFriend((prev) => ({
+      ...prev,
+      [selectedFriendId]: now,
+    }));
+
+    setLastPreviewByFriend((prev) => ({
+      ...prev,
+      [selectedFriendId]: `You: ${messageText}`,
+    }));
     
     sendMessageMutation.mutate({
-      recipientId: selectedFriend._id,
-      text: newMessage.trim()
+      recipientId: selectedFriendId,
+      text: messageText
     });
   };
 
@@ -107,10 +267,32 @@ const ChatPage = () => {
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-base-200 flex">
+    <div className="h-screen overflow-hidden bg-base-200 flex">
       {/* Sidebar - Friends List */}
-      <aside className="w-80 bg-base-100 border-r border-base-300 flex flex-col">
+      <aside className="w-80 h-full bg-base-100 border-r border-base-300 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-base-300">
           <div className="flex items-center justify-between mb-4">
@@ -123,7 +305,11 @@ const ChatPage = () => {
               </svg>
             </button>
             <h2 className="text-xl font-bold">💬 Messages</h2>
-            <div className="w-8"></div>
+            {totalUnreadMessages > 0 ? (
+              <div className="badge badge-error">{totalUnreadMessages}</div>
+            ) : (
+              <div className="w-8"></div>
+            )}
           </div>
           
           {/* Search Bar */}
@@ -144,12 +330,22 @@ const ChatPage = () => {
             </div>
           ) : friends.length > 0 ? (
             <div className="menu p-2">
-              {friends.map((friend) => (
+              {sortedFriends.map((friend) => {
+                const friendId = toId(friend._id);
+                const unreadCount = unreadBySender[friendId]?.unreadCount || 0;
+                const previewText = lastPreviewByFriend[friendId] || friend.location || 'Online';
+
+                return (
                 <button
                   key={friend._id}
-                  onClick={() => setSelectedFriend(friend)}
+                  onClick={() => {
+                    setSelectedFriend(friend);
+                    moveFriendToTop(friendId);
+                    queryClient.invalidateQueries({ queryKey: ['chatHistory', friendId] });
+                    queryClient.invalidateQueries({ queryKey: ['unreadSummary'] });
+                  }}
                   className={`flex items-center space-x-3 p-3 rounded-lg mb-2 hover:bg-base-200 transition-all ${
-                    selectedFriend?._id === friend._id ? 'bg-primary text-primary-content' : ''
+                    toId(selectedFriend?._id) === friendId ? 'bg-primary text-primary-content' : ''
                   }`}
                 >
                   <div className="avatar online">
@@ -163,11 +359,15 @@ const ChatPage = () => {
                   <div className="flex-1 text-left">
                     <p className="font-semibold truncate">{friend.fullName}</p>
                     <p className="text-xs opacity-60 truncate">
-                      {friend.location || 'Online'}
+                      {previewText}
                     </p>
                   </div>
+                  {unreadCount > 0 && toId(selectedFriend?._id) !== friendId ? (
+                    <div className="badge badge-primary badge-sm">{unreadCount}</div>
+                  ) : null}
                 </button>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="p-8 text-center">
@@ -200,7 +400,7 @@ const ChatPage = () => {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 h-full min-h-0 flex flex-col">
         {selectedFriend ? (
           <>
             {/* Chat Header */}
@@ -242,7 +442,7 @@ const ChatPage = () => {
             </header>
 
             {/* Messages Area */}
-            <div id="messages-container" className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div id="messages-container" className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
               {loadingMessages ? (
                 <div className="text-center py-12">
                   <span className="loading loading-spinner loading-lg text-primary"></span>

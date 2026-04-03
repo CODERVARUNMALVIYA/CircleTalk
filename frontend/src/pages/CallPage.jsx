@@ -6,9 +6,6 @@ import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { resolveProfilePic, makeAvatarUrl } from '../lib/avatar';
 
-// Socket connection
-let socket = null;
-
 const FALLBACK_AVATAR = makeAvatarUrl('fallback-user');
 const SOCKET_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '').replace(/\/$/, '');
 
@@ -29,6 +26,10 @@ const CallPage = () => {
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
+  const socketRef = useRef(null);
+  const friendsRef = useRef([]);
+  const pendingIceCandidatesRef = useRef([]);
+  const hasRemoteDescriptionRef = useRef(false);
 
   const getProfilePic = (pic, seed = 'call-user') => resolveProfilePic(pic, seed);
 
@@ -61,8 +62,27 @@ const CallPage = () => {
   const user = authData?.user;
   const friends = friendsData || [];
 
+  useEffect(() => {
+    friendsRef.current = friends;
+  }, [friends]);
+
   // End call
-  const endCall = () => {
+  const flushPendingIceCandidates = async () => {
+    if (!peerConnectionRef.current || !hasRemoteDescriptionRef.current) return;
+
+    while (pendingIceCandidatesRef.current.length > 0) {
+      const candidate = pendingIceCandidatesRef.current.shift();
+      if (!candidate) continue;
+
+      try {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding pending ICE candidate:', error);
+      }
+    }
+  };
+
+  const endCall = ({ notifyPeer = true } = {}) => {
     // Stop local stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -79,8 +99,8 @@ const CallPage = () => {
     }
 
     // Notify other user
-    if (socket && selectedFriend && isInCall) {
-      socket.emit('end-call', {
+    if (notifyPeer && socketRef.current && selectedFriend && isInCall) {
+      socketRef.current.emit('end-call', {
         to: selectedFriend._id,
       });
     }
@@ -92,6 +112,8 @@ const CallPage = () => {
     setCallType(null);
     setIsMuted(false);
     setIsVideoOff(false);
+    hasRemoteDescriptionRef.current = false;
+    pendingIceCandidatesRef.current = [];
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
@@ -107,66 +129,93 @@ const CallPage = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    if (user?._id && !socket) {
-      socket = io(SOCKET_BASE_URL);
+    if (!user?._id) return;
 
-      socket.on('connect', () => {
-        socket.emit('user-online', user._id);
-      });
-
-      // Handle incoming call
-      socket.on('incoming-call', async ({ from, offer, callType }) => {
-        const caller = friends.find((f) => f._id === from);
-        if (caller) {
-          setIncomingCall({ caller, offer, callType });
-          toast('Incoming call from ' + caller.fullName, {
-            icon: '📞',
-            duration: 10000,
-          });
-        }
-      });
-
-      // Handle call answered
-      socket.on('call-answered', async ({ answer }) => {
-        setCallStatus('connected');
-        if (peerConnectionRef.current) {
-          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-        }
-      });
-
-      // Handle ICE candidate
-      socket.on('ice-candidate', async ({ candidate }) => {
-        if (peerConnectionRef.current && candidate) {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      });
-
-      // Handle call rejected
-      socket.on('call-rejected', () => {
-        toast.error('Call was rejected');
-        endCall();
-      });
-
-      // Handle call ended
-      socket.on('call-ended', () => {
-        toast('Call ended');
-        endCall();
-      });
-
-      // Handle user offline
-      socket.on('user-offline', () => {
-        toast.error('User is offline');
-        endCall();
+    if (!socketRef.current) {
+      socketRef.current = io(SOCKET_BASE_URL, {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        reconnection: true,
       });
     }
 
-    return () => {
-      if (socket) {
-        socket.disconnect();
-        socket = null;
+    const activeSocket = socketRef.current;
+
+    const handleConnect = () => {
+      activeSocket.emit('user-online', user._id);
+    };
+
+    const handleIncomingCall = ({ from, offer, callType: incomingCallType }) => {
+      const caller = friendsRef.current.find((f) => f._id === from) || {
+        _id: from,
+        fullName: 'Friend',
+        profilePic: makeAvatarUrl(from || 'friend'),
+      };
+
+      setIncomingCall({ caller, offer, callType: incomingCallType });
+      toast('Incoming call from ' + caller.fullName, {
+        icon: '📞',
+        duration: 10000,
+      });
+    };
+
+    const handleCallAnswered = async ({ answer }) => {
+      if (peerConnectionRef.current) {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        hasRemoteDescriptionRef.current = true;
+        await flushPendingIceCandidates();
+        setCallStatus('connected');
       }
     };
-  }, [user, friends]);
+
+    const handleIceCandidate = async ({ candidate }) => {
+      if (!candidate || !peerConnectionRef.current) return;
+
+      if (!hasRemoteDescriptionRef.current) {
+        pendingIceCandidatesRef.current.push(candidate);
+        return;
+      }
+
+      try {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+      }
+    };
+
+    const handleCallRejected = () => {
+      toast.error('Call was rejected');
+      endCall({ notifyPeer: false });
+    };
+
+    const handleCallEnded = () => {
+      toast('Call ended');
+      endCall({ notifyPeer: false });
+    };
+
+    const handleUserOffline = () => {
+      toast.error('User is offline');
+      endCall({ notifyPeer: false });
+    };
+
+    activeSocket.on('connect', handleConnect);
+    activeSocket.on('incoming-call', handleIncomingCall);
+    activeSocket.on('call-answered', handleCallAnswered);
+    activeSocket.on('ice-candidate', handleIceCandidate);
+    activeSocket.on('call-rejected', handleCallRejected);
+    activeSocket.on('call-ended', handleCallEnded);
+    activeSocket.on('user-offline', handleUserOffline);
+
+    return () => {
+      activeSocket.off('connect', handleConnect);
+      activeSocket.off('incoming-call', handleIncomingCall);
+      activeSocket.off('call-answered', handleCallAnswered);
+      activeSocket.off('ice-candidate', handleIceCandidate);
+      activeSocket.off('call-rejected', handleCallRejected);
+      activeSocket.off('call-ended', handleCallEnded);
+      activeSocket.off('user-offline', handleUserOffline);
+    };
+  }, [user?._id]);
 
   // Auto-start call if coming from another page
   useEffect(() => {
@@ -180,6 +229,9 @@ const CallPage = () => {
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection(iceServers);
 
+    hasRemoteDescriptionRef.current = false;
+    pendingIceCandidatesRef.current = [];
+
     // Add local stream tracks to peer connection
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
@@ -192,13 +244,14 @@ const CallPage = () => {
       remoteStreamRef.current = event.streams[0];
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.play?.().catch(() => {});
       }
     };
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socket && selectedFriend) {
-        socket.emit('ice-candidate', {
+      if (event.candidate && socketRef.current && selectedFriend) {
+        socketRef.current.emit('ice-candidate', {
           to: selectedFriend._id,
           candidate: event.candidate,
         });
@@ -234,6 +287,15 @@ const CallPage = () => {
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play?.().catch(() => {});
+      }
+
+      if (!socketRef.current?.connected) {
+        stream.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+        setCallStatus('idle');
+        toast.error('Connection not ready. Please try again.');
+        return;
       }
 
       // Create peer connection
@@ -244,8 +306,8 @@ const CallPage = () => {
       await peerConnectionRef.current.setLocalDescription(offer);
 
       // Send offer to recipient
-      if (socket) {
-        socket.emit('call-user', {
+      if (socketRef.current) {
+        socketRef.current.emit('call-user', {
           to: friend._id,
           from: user._id,
           offer,
@@ -264,8 +326,8 @@ const CallPage = () => {
 
   // Reject incoming call
   const rejectCall = () => {
-    if (incomingCall && socket) {
-      socket.emit('reject-call', {
+    if (incomingCall && socketRef.current) {
+      socketRef.current.emit('reject-call', {
         to: incomingCall.caller._id,
       });
     }
@@ -292,6 +354,7 @@ const CallPage = () => {
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play?.().catch(() => {});
       }
 
       // Create peer connection
@@ -299,14 +362,16 @@ const CallPage = () => {
 
       // Set remote description
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+      hasRemoteDescriptionRef.current = true;
+      await flushPendingIceCandidates();
 
       // Create answer
       const answer = await peerConnectionRef.current.createAnswer();
       await peerConnectionRef.current.setLocalDescription(answer);
 
       // Send answer
-      if (socket) {
-        socket.emit('answer-call', {
+      if (socketRef.current) {
+        socketRef.current.emit('answer-call', {
           to: incomingCall.caller._id,
           answer,
         });
@@ -348,7 +413,11 @@ const CallPage = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      endCall();
+      endCall({ notifyPeer: false });
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

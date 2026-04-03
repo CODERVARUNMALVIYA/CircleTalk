@@ -67,6 +67,8 @@ app.use('/api/chat', chatRoutes);
 
 // Socket.io connection handling
 const onlineUsers = new Map(); // userId -> socketId
+app.set('io', io);
+app.set('onlineUsers', onlineUsers);
 
 io.on('connection', (socket) => {
     // User joins with their ID
