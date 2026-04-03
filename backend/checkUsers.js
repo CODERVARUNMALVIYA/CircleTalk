@@ -5,8 +5,15 @@ dotenv.config();
 
 const checkUsers = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+        if (!mongoUri) {
+            throw new Error('Missing MONGO_URI / MONGODB_URI');
+        }
+
+        await mongoose.connect(mongoUri);
         console.log('Connected to MongoDB\n');
+        console.log(`Using DB: ${mongoose.connection?.name || 'unknown'}\n`);
 
         const users = await mongoose.connection.db.collection('users').find({}).toArray();
         

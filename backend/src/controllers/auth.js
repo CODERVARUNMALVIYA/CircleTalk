@@ -2,6 +2,8 @@ import { upsertStreamUser } from "../lib/stream.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getCookieOptions = () => {
     const isProduction = process.env.NODE_ENV === "production";
 
@@ -28,8 +30,11 @@ try {
     if(!emailRegex.test(email)) {
         return res.status(400).json({ message: "Invalid email format" });
     }
-    const existingUser = await User.findOne({email
-});
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({
+        email: { $regex: `^${escapeRegex(normalizedEmail)}$`, $options: "i" }
+    });
     if(existingUser) {
         return res.status(400).json({ message: "Email already in use" });
     }
@@ -40,7 +45,7 @@ try {
     
     const newUser = await User.create({
         fullName,
-        email,
+        email: normalizedEmail,
         password,
         profilePic: userAvatar,
         nativeLanguage: nativeLanguage || 'English',
@@ -78,7 +83,11 @@ export async function login(req, res) {
         if(!email || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
-        const user = await User.findOne({email});
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await User.findOne({
+            email: { $regex: `^${escapeRegex(normalizedEmail)}$`, $options: "i" }
+        });
         if(!user) {
             return res.status(401).json({ message: "Invalid credentials" });
         }
