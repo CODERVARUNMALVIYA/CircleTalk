@@ -10,6 +10,7 @@ import { resolveProfilePic, makeAvatarUrl } from '../lib/avatar';
 let socket = null;
 
 const FALLBACK_AVATAR = makeAvatarUrl('fallback-user');
+const SOCKET_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 const CallPage = () => {
   const navigate = useNavigate();
@@ -107,7 +108,7 @@ const CallPage = () => {
   // Initialize socket connection
   useEffect(() => {
     if (user?._id && !socket) {
-      socket = io('http://localhost:5001');
+      socket = io(SOCKET_BASE_URL);
 
       socket.on('connect', () => {
         socket.emit('user-online', user._id);
