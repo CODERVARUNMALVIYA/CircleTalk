@@ -20,6 +20,10 @@ const LoginPage = () => {
       const res = await axiosInstance.post('/auth/login', { email, password });
       
       console.log('✅ Login response:', res.data); // Debug log
+
+      if (res.data?.token) {
+        localStorage.setItem('auth_token', res.data.token);
+      }
       
       toast.success('Login successful!');
       

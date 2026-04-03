@@ -69,7 +69,7 @@ try {
     });
 
     res.cookie("jwt", token, getCookieOptions())
-    res.status(201).json({success: true, user: newUser});
+    res.status(201).json({success: true, user: newUser, token});
 
 }
 catch (error) {
@@ -103,7 +103,7 @@ export async function login(req, res) {
     });
 
     res.cookie("jwt", token, getCookieOptions())
-    res.status(200).json({success: true, user })
+    res.status(200).json({success: true, user, token })
     } catch (error) {
         console.error("Error during login:", error);
         res.status(500).json({ message: "Server error" });

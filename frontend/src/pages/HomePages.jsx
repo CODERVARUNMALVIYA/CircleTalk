@@ -127,6 +127,7 @@ const HomePages = () => {
   const handleLogout = async () => {
     try {
       await axiosInstance.post('/auth/logout');
+      localStorage.removeItem('auth_token');
       toast.success('Logged out successfully!');
       window.location.href = '/login';
     } catch (error) {
