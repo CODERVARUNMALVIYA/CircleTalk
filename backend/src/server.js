@@ -13,20 +13,25 @@ import { connectDB } from './lib/db.js';
 const app = express();
 const PORT = process.env.PORT;
 
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 // Create HTTP server
 const httpServer = createServer(app);
 
 // Setup Socket.io with CORS
 const io = new Server(httpServer, {
     cors: {
-        origin: 'http://localhost:5173',
+        origin: allowedOrigins,
         credentials: true,
         methods: ['GET', 'POST']
     }
 });
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
 }));
 
