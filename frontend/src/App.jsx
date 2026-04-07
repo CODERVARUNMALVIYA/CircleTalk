@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Route, Routes,Navigate, useLocation } from 'react-router'
+import { useNavigate } from 'react-router-dom'
 import HomePage from './pages/HomePages.jsx'
 import SignUpPage from './pages/SignUpPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -19,6 +20,7 @@ const SOCKET_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001'
 
 const App = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const socketRef = useRef(null);
 
@@ -93,14 +95,55 @@ const App = () => {
       }
     };
 
+    const handleIncomingCall = ({ from, offer, callType }) => {
+      if (!from || !offer) return;
+
+      if (location.pathname === '/call') {
+        return;
+      }
+
+      const incomingCallPayload = {
+        caller: {
+          _id: from,
+          fullName: 'Friend',
+          profilePic: null,
+        },
+        offer,
+        callType: callType || 'audio',
+      };
+
+      toast('Incoming call', { icon: '📞' });
+      navigate('/call', { state: { incomingCall: incomingCallPayload } });
+
+      if (
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+      ) {
+        const browserNotification = new Notification('Incoming call', {
+          body: `${incomingCallPayload.callType === 'video' ? 'Video' : 'Voice'} call`,
+          tag: `incoming-call-${from}`,
+          requireInteraction: true,
+        });
+
+        browserNotification.onclick = () => {
+          window.focus();
+          navigate('/call', { state: { incomingCall: incomingCallPayload } });
+          browserNotification.close();
+        };
+      }
+    };
+
     activeSocket.on('connect', handleConnect);
     activeSocket.on('new-message', handleNewMessage);
+    activeSocket.on('incoming-call', handleIncomingCall);
 
     return () => {
       activeSocket.off('connect', handleConnect);
       activeSocket.off('new-message', handleNewMessage);
+      activeSocket.off('incoming-call', handleIncomingCall);
     };
-  }, [authUser?._id, location.pathname, queryClient]);
+  }, [authUser?._id, location.pathname, navigate, queryClient]);
 
   useEffect(() => {
     return () => {

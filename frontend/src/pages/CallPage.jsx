@@ -19,7 +19,8 @@ const CallPage = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callStatus, setCallStatus] = useState('idle'); // idle, calling, ringing, connected
-  const [incomingCall, setIncomingCall] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(location.state?.incomingCall || null);
+  const [hasRemoteStream, setHasRemoteStream] = useState(false);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -65,6 +66,12 @@ const CallPage = () => {
   useEffect(() => {
     friendsRef.current = friends;
   }, [friends]);
+
+  useEffect(() => {
+    if (location.state?.incomingCall) {
+      setIncomingCall(location.state.incomingCall);
+    }
+  }, [location.state]);
 
   // End call
   const flushPendingIceCandidates = async () => {
@@ -112,6 +119,7 @@ const CallPage = () => {
     setCallType(null);
     setIsMuted(false);
     setIsVideoOff(false);
+    setHasRemoteStream(false);
     hasRemoteDescriptionRef.current = false;
     pendingIceCandidatesRef.current = [];
 
@@ -193,7 +201,12 @@ const CallPage = () => {
       endCall({ notifyPeer: false });
     };
 
-    const handleUserOffline = () => {
+    const handleUserOffline = ({ userId }) => {
+      const activeFriendId = selectedFriend?._id;
+      if (!activeFriendId || String(activeFriendId) !== String(userId)) {
+        return;
+      }
+
       toast.error('User is offline');
       endCall({ notifyPeer: false });
     };
@@ -226,7 +239,7 @@ const CallPage = () => {
   }, []);
 
   // Create peer connection
-  const createPeerConnection = () => {
+  const createPeerConnection = (peerId) => {
     const pc = new RTCPeerConnection(iceServers);
 
     hasRemoteDescriptionRef.current = false;
@@ -242,6 +255,7 @@ const CallPage = () => {
     // Handle remote stream
     pc.ontrack = (event) => {
       remoteStreamRef.current = event.streams[0];
+      setHasRemoteStream(true);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
         remoteVideoRef.current.play?.().catch(() => {});
@@ -250,9 +264,9 @@ const CallPage = () => {
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current && selectedFriend) {
+      if (event.candidate && socketRef.current && peerId) {
         socketRef.current.emit('ice-candidate', {
-          to: selectedFriend._id,
+          to: peerId,
           candidate: event.candidate,
         });
       }
@@ -299,7 +313,7 @@ const CallPage = () => {
       }
 
       // Create peer connection
-      peerConnectionRef.current = createPeerConnection();
+      peerConnectionRef.current = createPeerConnection(friend._id);
 
       // Create offer
       const offer = await peerConnectionRef.current.createOffer();
@@ -358,7 +372,7 @@ const CallPage = () => {
       }
 
       // Create peer connection
-      peerConnectionRef.current = createPeerConnection();
+      peerConnectionRef.current = createPeerConnection(incomingCall.caller._id);
 
       // Set remote description
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
@@ -580,7 +594,7 @@ const CallPage = () => {
               <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
 
               {/* Placeholder */}
-              {!remoteVideoRef.current?.srcObject && (
+              {!hasRemoteStream && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary to-secondary">
                   <div className="text-center text-primary-content">
                     <div className="avatar mb-4">

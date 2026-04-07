@@ -66,83 +66,99 @@ app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
 
 // Socket.io connection handling
-const onlineUsers = new Map(); // userId -> socketId
+const onlineUsers = new Map(); // userId -> Set<socketId>
 app.set('io', io);
 app.set('onlineUsers', onlineUsers);
+
+const getUserSockets = (userId) => {
+    if (!userId) return null;
+    return onlineUsers.get(String(userId)) || null;
+};
+
+const emitToUserSockets = (userId, event, payload = {}) => {
+    const sockets = getUserSockets(userId);
+    if (!sockets || sockets.size === 0) {
+        return false;
+    }
+
+    sockets.forEach((socketId) => {
+        io.to(socketId).emit(event, payload);
+    });
+
+    return true;
+};
 
 io.on('connection', (socket) => {
     // User joins with their ID
     socket.on('user-online', (userId) => {
-        onlineUsers.set(userId, socket.id);
+        const normalizedUserId = String(userId);
+        const existingSockets = getUserSockets(normalizedUserId) || new Set();
+        existingSockets.add(socket.id);
+        onlineUsers.set(normalizedUserId, existingSockets);
+        socket.data.userId = normalizedUserId;
         
         // Broadcast online status to all users
         io.emit('user-status-change', {
-            userId,
+            userId: normalizedUserId,
             isOnline: true
         });
     });
 
     // Call initiation
     socket.on('call-user', ({ to, from, offer, callType }) => {
-        const recipientSocketId = onlineUsers.get(to);
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('incoming-call', {
+        const delivered = emitToUserSockets(to, 'incoming-call', {
                 from,
                 offer,
                 callType
             });
-        } else {
+
+        if (!delivered) {
             socket.emit('user-offline', { userId: to });
         }
     });
 
     // Call answer
     socket.on('answer-call', ({ to, answer }) => {
-        const callerSocketId = onlineUsers.get(to);
-        if (callerSocketId) {
-            io.to(callerSocketId).emit('call-answered', { answer });
-        }
+        emitToUserSockets(to, 'call-answered', { answer });
     });
 
     // ICE candidates exchange
     socket.on('ice-candidate', ({ to, candidate }) => {
-        const recipientSocketId = onlineUsers.get(to);
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('ice-candidate', { candidate });
-        }
+        emitToUserSockets(to, 'ice-candidate', { candidate });
     });
 
     // Call rejection
     socket.on('reject-call', ({ to }) => {
-        const callerSocketId = onlineUsers.get(to);
-        if (callerSocketId) {
-            io.to(callerSocketId).emit('call-rejected');
-        }
+        emitToUserSockets(to, 'call-rejected');
     });
 
     // Call end
     socket.on('end-call', ({ to }) => {
-        const recipientSocketId = onlineUsers.get(to);
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('call-ended');
-        }
+        emitToUserSockets(to, 'call-ended');
     });
 
     // Disconnect
     socket.on('disconnect', () => {
-        // Find and remove user from online users
-        for (const [userId, socketId] of onlineUsers.entries()) {
-            if (socketId === socket.id) {
-                onlineUsers.delete(userId);
-                
-                // Broadcast offline status
-                io.emit('user-status-change', {
-                    userId,
-                    isOnline: false
-                });
-                break;
-            }
+        const userId = socket.data.userId;
+        if (!userId) return;
+
+        const sockets = getUserSockets(userId);
+        if (!sockets) return;
+
+        sockets.delete(socket.id);
+
+        if (sockets.size === 0) {
+            onlineUsers.delete(userId);
+
+            // Broadcast offline status only when last socket disconnects
+            io.emit('user-status-change', {
+                userId,
+                isOnline: false
+            });
+            return;
         }
+
+        onlineUsers.set(userId, sockets);
     });
 });
 

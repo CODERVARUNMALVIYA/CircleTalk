@@ -45,10 +45,12 @@ export async function sendMessage(req, res) {
 
         const io = req.app.get('io');
         const onlineUsers = req.app.get('onlineUsers');
-        const recipientSocketId = onlineUsers?.get(recipientId?.toString());
+        const recipientSockets = onlineUsers?.get(recipientId?.toString());
 
-        if (io && recipientSocketId) {
-            io.to(recipientSocketId).emit('new-message', populatedMessage);
+        if (io && recipientSockets?.size) {
+            recipientSockets.forEach((socketId) => {
+                io.to(socketId).emit('new-message', populatedMessage);
+            });
         }
         
         res.status(201).json({
