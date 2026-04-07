@@ -31,6 +31,7 @@ const CallPage = () => {
   const friendsRef = useRef([]);
   const pendingIceCandidatesRef = useRef([]);
   const hasRemoteDescriptionRef = useRef(false);
+  const currentCallIdRef = useRef(null);
 
   const getProfilePic = (pic, seed = 'call-user') => resolveProfilePic(pic, seed);
 
@@ -120,6 +121,7 @@ const CallPage = () => {
     setIsMuted(false);
     setIsVideoOff(false);
     setHasRemoteStream(false);
+    currentCallIdRef.current = null;
     hasRemoteDescriptionRef.current = false;
     pendingIceCandidatesRef.current = [];
 
@@ -153,14 +155,14 @@ const CallPage = () => {
       activeSocket.emit('user-online', user._id);
     };
 
-    const handleIncomingCall = ({ from, offer, callType: incomingCallType }) => {
+    const handleIncomingCall = ({ from, offer, callType: incomingCallType, callId }) => {
       const caller = friendsRef.current.find((f) => f._id === from) || {
         _id: from,
         fullName: 'Friend',
         profilePic: makeAvatarUrl(from || 'friend'),
       };
 
-      setIncomingCall({ caller, offer, callType: incomingCallType });
+      setIncomingCall({ caller, offer, callType: incomingCallType, callId: callId || null });
       toast('Incoming call from ' + caller.fullName, {
         icon: '📞',
         duration: 10000,
@@ -201,9 +203,17 @@ const CallPage = () => {
       endCall({ notifyPeer: false });
     };
 
-    const handleUserOffline = ({ userId }) => {
+    const handleUserOffline = ({ userId, callId }) => {
       const activeFriendId = selectedFriend?._id;
       if (!activeFriendId || String(activeFriendId) !== String(userId)) {
+        return;
+      }
+
+      if (callId && currentCallIdRef.current && String(callId) !== String(currentCallIdRef.current)) {
+        return;
+      }
+
+      if (callStatus !== 'calling') {
         return;
       }
 
@@ -228,7 +238,7 @@ const CallPage = () => {
       activeSocket.off('call-ended', handleCallEnded);
       activeSocket.off('user-offline', handleUserOffline);
     };
-  }, [user?._id]);
+  }, [user?._id, selectedFriend, callStatus]);
 
   // Auto-start call if coming from another page
   useEffect(() => {
@@ -321,11 +331,15 @@ const CallPage = () => {
 
       // Send offer to recipient
       if (socketRef.current) {
+        const callId = `${user._id}-${friend._id}-${Date.now()}`;
+        currentCallIdRef.current = callId;
+
         socketRef.current.emit('call-user', {
           to: friend._id,
           from: user._id,
           offer,
           callType: type,
+          callId,
         });
       }
 

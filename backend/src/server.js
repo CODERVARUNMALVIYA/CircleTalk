@@ -105,15 +105,16 @@ io.on('connection', (socket) => {
     });
 
     // Call initiation
-    socket.on('call-user', ({ to, from, offer, callType }) => {
+    socket.on('call-user', ({ to, from, offer, callType, callId }) => {
         const delivered = emitToUserSockets(to, 'incoming-call', {
                 from,
                 offer,
-                callType
+                callType,
+                callId: callId || null,
             });
 
         if (!delivered) {
-            socket.emit('user-offline', { userId: to });
+            socket.emit('user-offline', { userId: to, callId: callId || null });
         }
     });
 
