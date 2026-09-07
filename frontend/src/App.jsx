@@ -134,14 +134,40 @@ const App = () => {
       }
     };
 
+    const handleFriendRequest= (data) => {
+      const senderName = data?.sender?.fullName || 'New friend request';
+
+      toast(`${senderName} sent you a friend request`, { icon: '👥'  });
+
+      if(
+        typeof window !== 'undefined' &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+
+      ){
+        const browserNotification = new Notification('New friend request',{
+          body: `${senderName} sent you a friend request`,
+          tag: `friend-request-${data?.sender?._id}`,
+        })
+        browserNotification.onclick = () =>{
+          window.focus();
+          navigate('/notification');
+          browserNotification.close();
+        };
+      }
+    };
+
     activeSocket.on('connect', handleConnect);
     activeSocket.on('new-message', handleNewMessage);
     activeSocket.on('incoming-call', handleIncomingCall);
+    activeSocket.on('friend-request', handleFriendRequest);
 
     return () => {
       activeSocket.off('connect', handleConnect);
       activeSocket.off('new-message', handleNewMessage);
       activeSocket.off('incoming-call', handleIncomingCall);
+      activeSocket.on('friend-request', handleFriendRequest);
+
     };
   }, [authUser?._id, location.pathname, navigate, queryClient]);
 
